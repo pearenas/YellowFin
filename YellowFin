@@ -1,0 +1,252 @@
+# -------------------------------------------------------------
+#Cuando se corre por primera vez, quitar simbolo "###" de las linea de abajo. Poner el cursor en la primera linea 
+# donde quito el simbolo "###" y presionar "Run" en la parte de arriba a la derecha. Presionar "Run" hasta que todas
+#las lineas de codigo a las que le quito "###" sean ejecutadas. Despues vuelva a gregar los simbolos "###"
+
+###install.packages("ggplot2")
+###filename = "YellowFin.R"
+###filepath = file.choose()  # En la ventana escoja el archivo "YellowFin.R"
+###dir = substr(filepath, 1, nchar(filepath)-nchar(filename))
+###setwd(dir)
+###OriginalWD <- getwd()
+# -------------------------------------------------------------
+#Objetivo: Simulacion que muestra como cambia el promedio de captura por barco de YellowFin conforme incrementa el
+#porcentaje del area total cerrada a la pesca. Escriba cantidades deseadas en las variables abajo.
+#Seleccione todo el codigo y presione "Run" en la parte de arriba a la derecha
+
+#Proceso: Iniciamos con 0% de area abierta para la pesca. Ya al final se resta 1-(%de area abierta) para conseguir % 
+#de area cerrada a la pesca. Finalmente el % de area cerrada a la pesca es el eje x de las graficas. Cada barco 
+#pesca una vez por dia, el numero de dias en la temporada de pesca. La captura de cada barco en cada dia se va 
+#sumando. La temporada de pesca se repite el numero indicado de repeticiones. Las capturas de los barcos se 
+#continuan sumando. Cuando las repeticiones llegan al # indicado, se anota promedio de captura asociado con % de 
+#area abierta. Se agrega % de area abierta indicado y se repite la simulacion, ahora con el nuevo % de area abierta.
+#La simulacion termina cuando el % de area abierta a la pesca es > 100%. Los peces restantes se distribuyen 
+#aleatoriamente cada dia y se vuelven a su cantidad inicial en cada nuevo % de area abierta. Los barcos de 
+#distribuyen aleatoriamente inicialmente y despues se mueven cada dia de su posicion antigua en direccion x y y 
+#(como un caballo de ajedrez), una cantidad aleatoria dentro del movimiento maximo escogido. Los barcos pueden 
+#ocupar el mismo espacio. El primer barco en llegar a una coordenada pesca todos los peces en esa coordenada.
+
+#Dias de la temporada de Pesca
+TemporadaDePescaDias <- 1
+#Numero de Repeticiones de la Simulacion
+Repeticiones <- 1
+#Area del mar (x*x matriz)
+MarDimension <- 100
+#Numero de Peces
+NumeroDePeces <- 3000
+#Numero de Barcos
+NumeroDeBarcos <- 400
+#Incremento de Porcentaje de Area de Mar Abierta
+#Nota: Porcentaje se va acumulando y cada vez multiplica por la dimension del mar, para generar nueva x*x
+#matriz de area abierta a la pesca.Si la longitud de la nueva matriz es menor a numero "n" y mayor a numero "m", 
+#se redondea a numero "m"
+IncrementoPorcentaje <- .01
+#Cuantos cuadros maximo se pueden mover los barcos (direccion x - direccion y)
+BarcoMovimiento <- 40
+
+
+##############################
+library(ggplot2) # For the plots
+#Porcentaje de Area Abierta
+AreaAbierta <- 0
+i <- 1
+BarcoCapturaPromedio <- vector()
+DatosFinales <- data.frame (AreaAbierta = integer(),CapturaPromedio = integer())
+
+while (i <= Repeticiones) {
+  #Tamño del mar y espacio donde se distribuyen los peces
+  mar <- matrix(0, nrow =MarDimension, ncol = MarDimension)
+  #Dimensiones del area restringida a la pesca
+  PorcentajeAreaAbierta <- as.numeric(as.character(AreaAbierta %*% nrow(mar)))
+  AreaRestringidaDePesca <- matrix(0, nrow =PorcentajeAreaAbierta, ncol = PorcentajeAreaAbierta)
+  #Coordenadas de los Barcos
+  if (nrow(AreaRestringidaDePesca) == 0){
+    tmp <- data.frame(AreaCerrada = 0,CapturaPromedio = 0)
+    DatosFinales <- rbind(DatosFinales,tmp)
+    AreaAbierta <- AreaAbierta + IncrementoPorcentaje
+    next
+  } else {
+    #Generar Numeros Aleatorios Para Coordenadas de Barcos
+    BarcosX <- floor(runif(NumeroDeBarcos, min=1, max = nrow(AreaRestringidaDePesca)+1))
+    BarcosY <- floor(runif(NumeroDeBarcos, min=1, max = nrow(AreaRestringidaDePesca)+1))
+    #Generar Data Frame Para Coordenadas de Barcos
+    Barcos <- as.data.frame(BarcosX)
+    Barcos$BarcosY <- BarcosY
+  }
+  
+  #Poner los barcos en su area restringida
+  for (barco in 1:nrow(Barcos)) {
+    row = Barcos[barco,]
+    columna = row$BarcosX
+    fila = row$BarcosY
+    #Codigo para que los barcos no puedan estar en las mismas coordenadas, si el %de area abierta es mayor a 40%
+    #    repeat{
+    #      if ((AreaRestringidaDePesca[fila,columna] == 1) && (((nrow(AreaRestringidaDePesca)%*%nrow(AreaRestringidaDePesca))/(nrow(mar) %*% nrow(mar))) > .4)) {
+    #      columna <- floor(runif(1,min=1,max=nrow(AreaRestringidaDePesca)+1))
+    #      fila <- floor(runif(1,min=1,max=nrow(AreaRestringidaDePesca)+1))
+    #      }else{
+    Barcos[barco,1] <- columna
+    Barcos[barco,2] <- fila
+    #        break
+    #      }
+    #    }
+    AreaRestringidaDePesca[fila,columna] <- AreaRestringidaDePesca[fila,columna] + 1
+  }
+  
+  #Generar Numeros Aleatorios Para Coordenadas de YellowFin
+  YellowFinx <- floor(runif(NumeroDePeces, min=1, max = nrow(mar)+1))
+  YellowFiny <- floor(runif(NumeroDePeces, min=1, max = nrow(mar)+1))
+  #Generar Data Frame Para Coordenadas de YellowFin
+  YellowFin <- as.data.frame(YellowFinx)
+  YellowFin$YellowFiny <- YellowFiny
+  #Y ponerlos en el mar
+  for (fish in 1:nrow(YellowFin)) {
+    row = YellowFin[fish,]
+    columna = row$YellowFinx
+    fila = row$YellowFiny
+    mar[fila,columna] <- mar[fila,columna] + 1
+  }
+  
+  #Se pueden mover los barcos deseado numero de cuadros lateral y horizontal de su antigua posicion
+  for (dia in 1:TemporadaDePescaDias) {
+    AreaRestringidaDePesca <- matrix(0, nrow =PorcentajeAreaAbierta, ncol = PorcentajeAreaAbierta)
+    for (barco in 1:nrow(Barcos)) {
+      row = Barcos[barco,]
+      columna <- floor(runif(1, min=row$BarcosX-BarcoMovimiento, max = row$BarcosX+BarcoMovimiento))
+      fila <- floor(runif(1, min=row$BarcosY-BarcoMovimiento, max = row$BarcosY+BarcoMovimiento))
+      if (columna > ncol(AreaRestringidaDePesca)) {
+        columna <- ncol(AreaRestringidaDePesca)
+      }
+      else if (columna < 1) {
+        columna <- 1
+      }
+      if (fila > nrow(AreaRestringidaDePesca)) {
+        fila <- nrow(AreaRestringidaDePesca)
+      }
+      else if (fila < 1) {
+        fila <- 1
+      }
+      #Codigo para que los barcos no puedan estar en las mismas coordenadas, si el %de area abierta es mayor a 40%
+      #      repeat{
+      #        if ((AreaRestringidaDePesca[fila,columna] == 1) && (((nrow(AreaRestringidaDePesca)%*%nrow(AreaRestringidaDePesca))/(nrow(mar) %*% nrow(mar))) > .4)) {
+      #          columna <- floor(runif(1, min=row$BarcosX-BarcoMovimiento, max = row$BarcosX+BarcoMovimiento))
+      #          fila <- floor(runif(1, min=row$BarcosY-BarcoMovimiento, max = row$BarcosY+BarcoMovimiento))
+      #          if (columna > ncol(AreaRestringidaDePesca)) {
+      #            columna <- ncol(AreaRestringidaDePesca)
+      #          }
+      #          else if (columna < 1) {
+      #            columna <- 1
+      #          }
+      #          if (fila > nrow(AreaRestringidaDePesca)) {
+      #            fila <- nrow(AreaRestringidaDePesca)
+      #          }
+      #          else if (fila < 1) {
+      #            fila <- 1
+      #          }
+      #        } else {
+      Barcos[barco,1] <- columna
+      Barcos[barco,2] <- fila
+      #          break
+      #          }
+      #      }
+      AreaRestringidaDePesca[fila,columna] <- AreaRestringidaDePesca[fila,columna] + 1
+    }
+    
+    if (sum(colSums(mar) != 0)) {
+      #Generar Numeros Aleatorios Para Coordenadas de YellowFin. Cada dia se vuelven a mover aleatoriamente los peces
+      #Esto ya es solo para los YellowFin que Quedan
+      YellowFinx <- floor(runif(sum(colSums(mar)), min=1, max = nrow(mar)+1))
+      YellowFiny <- floor(runif(sum(colSums(mar)), min=1, max = nrow(mar)+1))
+      #Generar Data Frame Para Coordenadas de YellowFin
+      YellowFin <- as.data.frame(YellowFinx)
+      YellowFin$YellowFiny <- YellowFiny
+      mar <- matrix(0, nrow =MarDimension, ncol = MarDimension)
+      #Y ponerlos en el mar
+      for (fish in 1:nrow(YellowFin)) {
+        row = YellowFin[fish,]
+        columna = row$YellowFinx
+        fila = row$YellowFiny
+        mar[fila,columna] <- mar[fila,columna] + 1
+      }
+    } else {
+      YellowFin <- data.frame (YellowFinx = integer(),YellowFiny = integer())
+    }
+    #Se va sumando la captura de los barcos
+    for (barco in 1:nrow(Barcos)) {
+      row = Barcos[barco,]
+      columna = row$BarcosX
+      fila = row$BarcosY
+      Captura <- mar[fila,columna]
+      BarcoCapturaPromedio <- append(BarcoCapturaPromedio, Captura)
+      mar[fila,columna] <- 0
+    }
+  }
+  #Repeticiones de la Simulacion
+  i <- i + 1
+  #Si las repeticiones son las pedidas, incrementar Area Abierta y repetir simulacion
+  if (i > Repeticiones) {
+    tmp <- data.frame(AreaCerrada = ((nrow(AreaRestringidaDePesca)%*%nrow(AreaRestringidaDePesca))/(nrow(mar) %*% nrow(mar))),CapturaPromedio = mean(BarcoCapturaPromedio))
+    DatosFinales <- rbind(DatosFinales,tmp)
+    AreaAbierta <- AreaAbierta + IncrementoPorcentaje
+    AreaCompletaCaptura <- BarcoCapturaPromedio
+    BarcoCapturaPromedio <- vector()
+    i <- 1
+    if (as.double(as.character(AreaAbierta)) > 1) {
+      i <- Repeticiones + 1
+      DatosFinales$AreaCerrada <- 1-DatosFinales$AreaCerrada
+      #Crear folder de acuerdo a longitud del mar y guardar datos finales en folder correspondiente
+      folder <- print(paste0("Mar", MarDimension, "x", MarDimension))
+      setwd(OriginalWD)
+      if (file.exists(folder)){
+        setwd(file.path(OriginalWD, folder))
+      } else {
+        folder <- print(paste0("Mar", MarDimension, "x", MarDimension))
+        dir.create(folder)
+        setwd(file.path(OriginalWD, folder))
+      }
+      write.table(DatosFinales, (print(paste0(file.path(OriginalWD, folder),"/TP",TemporadaDePescaDias,"Rep",Repeticiones,
+                                              "Mar",MarDimension,"Peces",NumeroDePeces,"Barcos",NumeroDeBarcos,
+                                              "Porcen",IncrementoPorcentaje,"MovBarcos",BarcoMovimiento,".txt"))),sep="\t")
+      View(Barcos)
+      View(YellowFin)
+      View(mar)
+      View(AreaRestringidaDePesca)
+      View(DatosFinales)
+      a <- "Arriba estan las capturas de todos los barcos x todos los dias x el numero de repeticiones, con el 100% del area abierta"
+      AreaCompletaCaptura
+      print(a)
+    }
+  }
+}
+#Grafica. Guardarla en el folder creado arriba
+plot <- ggplot(data = DatosFinales, aes(x = AreaCerrada, y = CapturaPromedio, group=1))+
+  geom_line(color="red")+
+  geom_point() + labs(title="Captura de YellowTail Dependiendo de Porcentaje de Area Para Pescar Cerrada", 
+                      x ="Porcentaje de Area Cerrada", y ="Captura Promedio")
+ranges <- ggplot_build(plot)$layout$panel_ranges[[1]]$y.range
+
+ggplot(data = DatosFinales, aes(x = AreaCerrada, y = CapturaPromedio, group=1))+
+  geom_line(color="red")+
+  geom_point() + labs(title="Captura de YellowTail Dependiendo de Porcentaje de Area Para Pescar Cerrada", 
+                      x ="Porcentaje de Area Cerrada", y ="Captura Promedio") + 
+  annotate("rect", xmin = .125, xmax = .5, ymin = as.double(as.character(.008%*%ranges[2])), ymax = as.double(as.character(.5%*%ranges[2])), alpha =.2) +
+  annotate("text", x = .19, y = as.double(as.character(.4385%*%ranges[2])), label = print(paste0("Temporada De Pesca Dias = ", TemporadaDePescaDias)), 
+           size = 4, hjust = 0) +
+  annotate("text", x = .19, y = as.double(as.character(.377%*%ranges[2])), label = print(paste0("Repeticiones = ", Repeticiones)), 
+           size = 4, hjust = 0) +
+  annotate("text", x = .19, y = as.double(as.character(.3155%*%ranges[2])), label = print(paste0("Mar Dimension = ", MarDimension, "x", MarDimension)),
+           size = 4, hjust = 0) +
+  annotate("text", x = .19, y = as.double(as.character(.254%*%ranges[2])), label = print(paste0("Numero de Peces = ", NumeroDePeces)),
+           size = 4, hjust = 0) +
+  annotate("text", x = .19, y = as.double(as.character(.1925%*%ranges[2])), label = print(paste0("Numero de Barcos = ", NumeroDeBarcos)),
+           size = 4, hjust = 0) +
+  annotate("text", x = .19, y = as.double(as.character(.131%*%ranges[2])), label = print(paste0("Incremento de Porcentaje = ", IncrementoPorcentaje)),
+           size = 4, hjust = 0) +
+  annotate("text", x = .19, y = as.double(as.character(.0695%*%ranges[2])), label = print(paste0("Movimiento de Barcos en x/y = ", BarcoMovimiento)),
+           size = 4, hjust = 0)
+ggsave((print(paste0("TP",TemporadaDePescaDias,"Rep",Repeticiones,
+                     "Mar",MarDimension,"Peces",NumeroDePeces,"Barcos",NumeroDeBarcos,
+                     "Porcen",IncrementoPorcentaje,"MovBarcos",BarcoMovimiento,".pdf"))), width = 26, height = 20, units = "cm")
+
+
+
