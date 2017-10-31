@@ -1,7 +1,8 @@
 # -------------------------------------------------------------
-#When running for the first time, remove "###" symbol from lines below. Place the cursor on the first line
-#where "###" was removed. Press "Run" on the top right corner. Press "Run" until all lines from which "###" was
-#removed, have been executed. Afterwards, reinsert the "###" symbols
+#When running for the first time, remove "###" symbol from lines  7-12 below. Highlight rows 7 through 12
+#and press the "Run" button on the top right corner of this window. Wait for a few seconds for everything to finish
+#downloading. A window will also open for you to choose a file. Choose the "YellowFinEnglish.R" file within the
+#downloaded folder for this project. Afterwards, reinsert the "###" symbols in lines 7 - 12
 
 ###install.packages("ggplot2")
 ###filename = "YellowFinEnglish.R"
@@ -9,26 +10,39 @@
 ###dir = substr(filepath, 1, nchar(filepath)-nchar(filename))
 ###setwd(dir)
 ###OriginalWD <- getwd()
+
+#DONT'T FORGET TO REINSERT THE "###" SYMBOLS IN LINES 7-12
 # -------------------------------------------------------------
 #Objective: Simulation that shows how the average catch per vessel of YellowFin tuna changes, as the percentage of
-#area open to the fishery increases. Write desired quantities in the variables below. Select the entire code and press
-#"Run" on the upper right part of the interface
+#area open to the fishery increases. 
 
-#Process: We begin with 0% of the area open for the fishery. In the end a subtraction is made of
+#Instructions to run the tool: Write desired quantities in the variables below. It is recommended to choose an
+#ocean matrix of 10x10 with a corresponding percentage increase of .1. Or ocean matrix of 100x100 can be chosen
+#with a corresponding percentage increase of.01 Remember to select other variables accordingly. 10x10 and 100x100 
+#will be sea matrices of 100 and 10,000 square units respectively. Fish and boats can be thought to occupy 1 square
+#Select the entire code in this tab with with command+a or control+a. Then press "Run" on the upper right part of 
+#this window. To view generated plot, in the lower right part of this program, click on the "Plots" tab if not already 
+#selected. Afterwards look within the downloaded folder for this project. Data and graphs generated will be saved 
+#under corresponding ocean dimension generated folders. File names will correspond to quantities chosen for the 
+#variables below.
+
+#How the Simulation Works: We begin with 0% of the area open for the fishery. In the end a subtraction is made of
 #1-(%area open to the fishery), to get the % of area closed to the fishery. %of area closed to the fishery ends up 
-#being the x-axis in generated graphs.Each vessel catch once per day, the number of days assigned to the fishing
+#being the x-axis in generated graphs. Each vessel catch once per day, the number of days assigned to the fishing
 #season. Catch of each vessel for each day is added. The fishing season repeats the indicated number of repetitions
 #catch of each vessel continues to be added. When repetitions reach the input value, average catch per vessel is
-#recorded along with the asociated % of area open to the fishery. Indicated incremenent of % of area open to the 
+#recorded along with the associated % of area open to the fishery. Indicated increment of % of area open to the 
 #fishery is added. The simulation then repeats, now with the new % of are open to the fishery. The simulations ends
 #% of area open to the fishery is > 100%. Remaining YellowFin fish are distributed randomly each day and they return
 #to their initial input quantity for each new % of area open to the fishery iteration. Vessels are distributed 
 #randomly initially and then move each day from their previous position in x and y direction. Number of squares
-#moved in each direction is randomly selected from the maximum possible movement input below.Vessels can occupy
-#the same space. The first ship to reach a coordinate catches all fish in that coordenate.
+#moved in each direction is randomly selected from the maximum possible movement input below. Vessels can occupy
+#the same space. The first ship to reach a coordinate catches all fish in that coordinate.
+
+#Chose variables below here --------------------------------------------------
 
 #How long is the fishing season (days)
-TemporadaDePescaDias <- 10
+TemporadaDePescaDias <- 20
 #Number of iterations
 Repeticiones <- 2
 #Ocean area (x*x matrix)
@@ -38,9 +52,9 @@ NumeroDePeces <- 300
 #Number of Vessels
 NumeroDeBarcos <- 40
 #Percentage increase in the % of area open to the fishery. 
-#Note: Percentage accumulates and each time is multiplied by the dimensions of the Ocean above, to generate a new
-#x*x matrix of restricted area for the fishery. If the leangth of the restricted area matrix es < "n" but > "m",
-#length will be rounded to the number "m"
+#Note: Percentage accumulates and each time and is multiplied by the dimensions of the Ocean above, to generate a new
+#x*x matrix of restricted area for the fishery. If the length of the restricted area matrix is < "3" but > "2",
+#length will be rounded to the number "2"
 IncrementoPorcentaje <- .1
 #Maximum number of squares that vessels can move (direction x and direction y)
 BarcoMovimiento <- 4
