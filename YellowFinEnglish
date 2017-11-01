@@ -1,8 +1,18 @@
 # -------------------------------------------------------------
-#When running for the first time, remove "###" symbol from lines  7-12 below. Highlight rows 7 through 12
+#YellowFinEnglish.R
+#
+#Objective: Simulation that shows how the average catch per vessel of YellowFin tuna changes, as the percentage of
+#area open to the fishery increases. 
+#
+#Created by: Pablo Esteban Arenas
+#October 2017
+#
+# -------------------------------------------------------------
+
+#When running for the first time, remove "###" symbol from lines  17-22 below. Highlight rows 17 through 22
 #and press the "Run" button on the top right corner of this window. Wait for a few seconds for everything to finish
 #downloading. A window will also open for you to choose a file. Choose the "YellowFinEnglish.R" file within the
-#downloaded folder for this project. Afterwards, reinsert the "###" symbols in lines 7 - 12
+#downloaded folder for this project. Afterwards, reinsert the "###" symbols in lines 17-22
 
 ###install.packages("ggplot2")
 ###filename = "YellowFinEnglish.R"
@@ -11,10 +21,8 @@
 ###setwd(dir)
 ###OriginalWD <- getwd()
 
-#DONT'T FORGET TO REINSERT THE "###" SYMBOLS IN LINES 7-12
+#DONT'T FORGET TO REINSERT THE "###" SYMBOLS IN LINES 17-22
 # -------------------------------------------------------------
-#Objective: Simulation that shows how the average catch per vessel of YellowFin tuna changes, as the percentage of
-#area open to the fishery increases. 
 
 #Instructions to run the tool: Write desired quantities in the variables below. It is recommended to choose an
 #ocean matrix of 10x10 with a corresponding percentage increase of .1. Or ocean matrix of 100x100 can be chosen
