@@ -1,9 +1,19 @@
 # -------------------------------------------------------------
-#Cuando está leyendo esto por primera vez, quitar símbolo "###" de las filas 8-13 de abajo. Seleccionar las filas
-#8-13 y presione el botón "Run" en la parte superior derecha de esta ventana. Espere unos segundos a que todo 
+#YellowFin.R
+#
+#Objetivo: Simulación que muestra como cambia el promedio de captura por barco de YellowFin conforme incrementa el
+#porcentaje del área total cerrada a la pesca. 
+#
+#Escrito por: Pablo Esteban Arenas
+#Octubre 2017
+#
+# -------------------------------------------------------------
+
+#Cuando está leyendo esto por primera vez, quitar símbolo "###" de las filas 18-23 de abajo. Seleccionar las filas
+#18-23 y presione el botón "Run" en la parte superior derecha de esta ventana. Espere unos segundos a que todo 
 #termine de descargarse. Aparecerá una ventana y tendrá que escoger un archivo. Escoja el archivo "YellowFin.R"
 #dentro de la carpeta descargada con este proyecto. Cuando termine vuelva a agregar los símbolos "###" en las líneas
-#8-13.
+#18-23.
 
 ###install.packages("ggplot2")
 ###filename = "YellowFin.R"
@@ -12,10 +22,8 @@
 ###setwd(dir)
 ###OriginalWD <- getwd()
 
-#NO OLVIDE DE VOLVER A AGREGAR LOS SIMBOLOS "###" A LAS LINEAS 8 - 13
+#NO OLVIDE DE VOLVER A AGREGAR LOS SIMBOLOS "###" A LAS LINEAS 18-23
 # -------------------------------------------------------------
-#Objetivo: Simulación que muestra como cambia el promedio de captura por barco de YellowFin conforme incrementa el
-#porcentaje del área total cerrada a la pesca. 
 
 #Instrucciones para correr la simulación: Escriba cantidades deseadas en las variables abajo. Se recomienda escoger
 #un área de mar que sea 10x10 con correspondiente incremento de porcentaje de .1. O escoger área de mar 100x100
