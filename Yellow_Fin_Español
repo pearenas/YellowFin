@@ -1,0 +1,633 @@
+# -------------------------------------------------------------
+#YellowFin.R
+#
+#Objetivo: Simulación que muestra como cambia el promedio de captura por barco de YellowFin conforme incrementa el
+#porcentaje del área total cerrada a la pesca. 
+#
+#Escrito por: Pablo Esteban Arenas
+#Octubre 2017
+#
+# -------------------------------------------------------------
+
+library(shiny)
+library(DT)
+library(shinydashboard)
+library(ggplot2)
+library(rsconnect)
+library(datasets)
+library(graphics)
+library(grDevices)
+library(methods)
+library(stats)
+library(utils)
+library(sp)
+library(raster)
+
+
+ui <- fluidPage(
+  dashboardPage(
+    dashboardHeader(title = h5(fluidRow(column(8, offset = 0,"Simulación de la Pesca de Atún Aleta Amarilla en el Pacifico Mexicano",
+                                               style = "padding-right:10px;padding-left:10px"), 
+                                        column(1, offset = 0, style = "padding-right:10px;padding-left:0px;margin-bottom:50px",
+                                               img(height =35, width = 80, src = "Tuna2.jpeg")))),titleWidth = 380),
+    dashboardSidebar(
+      sidebarMenu(
+        tags$style(".skin-blue .sidebar a { color: #444; }"),
+        textInput('TemporadaDePescaDias', 'Días de la Temporada de Pesca', 15),
+        textInput('Repeticiones', 'Repeticiones', as.numeric(1)),
+        selectInput('MarDimension', 'Dimensión del Mar (Cuadrado)', c(10, 100)),
+        textInput('NumeroDePeces', 'Número de Peces', 300),
+        textInput('NumeroDeBarcos', 'Número de Barcos', 40),
+        textInput('BarcoMovimiento', 'Cuadros que se Mueven los Barcos Cada Nuevo Día Para Pescar (lateral y vertical)', 4),
+        actionButton("go", "Generar Tabla y Gráfica"),
+        downloadButton("downloadplot1", "Descargue Gráfica"),
+        tags$style(type='text/css', "#downloadplot1 { margin-left: 15px; }"),
+        tags$style(type='text/css', "#downloadplot1 { margin-top: 6px; }"),
+        fluidRow(downloadButton("downloadtable", "Descargue Tabla", style ="float:center"),
+                 tags$style(type='text/css', "#downloadtable { margin-left: 30px; }"),
+                 tags$style(type='text/css', "#downloadtable { margin-top: 11px; }")))),
+    
+    dashboardBody(
+      tabBox(
+        id = "tabset1", height = "800px", width = "500px",
+        tabPanel ("Descripción",
+                  h5(fluidRow(column(6,style = "padding-left:30px", strong("Resumen"))),
+                     fluidRow(column(10, style ="padding-left:40px;padding-top:20px;line-height:20px;text-indent:20px",
+                                     "Simulación que muestra cómo cambia el promedio de captura por barco de atún aleta amarilla, conforme cambia el 
+                                     porcentaje del área cerrada a la pesca. Para correr la simulación, seleccione cualquier otra pestaña. Una vez escoja los parámetros deseados, presione el botón 'Generar Tabla y Grafica' para generar resultados.
+                                     La gráfica y tabla finales en la pestaña “Gráfica y Tabla de Captura Promedio por Barco”, se pueden descargar con sus botones correspondientes. Las distintas pestañas muestran información
+                                     adicional generada.")),
+                     fluidRow(column(6,style = "padding-left:30px;padding-top:30px", strong("Detalles del Proceso"))),
+                     fluidRow(column(10,style = "padding-left:40px;padding-top:20px;line-height:20px;text-indent:20px","Iniciamos con 0% de área abierta para la pesca. Ya al final se resta 
+                                     1 - (%de área abierta) para conseguir % de área cerrada a la pesca. Cada barco pesca una vez por día, el número de días en la temporada de pesca. 
+                                     La captura de cada barco en cada día se va sumando. La temporada de pesca se repite el numero indicado de 
+                                     repeticiones. Las capturas de los barcos se continúan sumando. Cuando las repeticiones llegan al # de repeticiones indicado, 
+                                     se anota promedio de captura asociado con % de área abierta. Se agrega 10% de área abierta y se repite 
+                                     la simulación, ahora con el nuevo % de área abierta. La simulación termina cuando el % de área abierta a la pesca 
+                                     es > 100%. Los peces restantes se distribuyen aleatoriamente cada día y se vuelven a su cantidad inicial en cada 
+                                     nuevo % de área abierta. Los barcos de distribuyen aleatoriamente inicialmente y después se mueven cada día de su 
+                                     posición antigua en dirección x e y (como un caballo de ajedrez), una cantidad aleatoria dentro del movimiento 
+                                     máximo escogido. Los barcos pueden ocupar el mismo espacio. El primer barco en llegar a una coordenada pesca 
+                                     todos los peces en esa coordenada. Los datos finales son el % de área cerrada a la pesca como el eje x de las gráficas. El eje y es la captura
+                                     promedio por barco correspondiente a cada % de área cerrada")))),
+        tabPanel ("Gráfica y Tabla de Captura Promedio por Barco",
+                  plotOutput("plot"),width = 24, 
+                  DT::dataTableOutput("DatosFinales")),
+        tabPanel("Visual de Barcos y Atún Antes y Después de la Simulación",
+                 fluidRow(column(6,h2(strong("Antes")),
+                                 style ="padding-left:233px"),
+                          column(6,h2(strong("Despues")),
+                                 style ="padding-left:209px")),
+                 fluidRow(column(6, plotOutput("Antes1")),
+                          column(6, plotOutput("Despues1")),
+                          tags$style(type='text/css', "#Antes1 { margin-top: -13px; }"),
+                          tags$style(type='text/css', "#Despues1 { margin-top: -13px; }")),
+                 fluidRow(column(2, plotOutput("LeyendaPeces"),
+                                 tags$style(type='text/css', "#LeyendaPeces { margin-top: -73px;margin-left:50px }")),
+                          column(2,h4("Peces")),
+                          column(2, plotOutput("LeyendaBarcos"),
+                                 tags$style(type='text/css', "#LeyendaBarcos { margin-top: -73px;margin-left:50px }")),
+                          column(2,h4("Barcos")),
+                          column(2, plotOutput("LeyendaMar"),
+                                 tags$style(type='text/css', "#LeyendaMar { margin-top: -73px;margin-left:50px }")),
+                          column(2,h4("Mar")))),
+        tabPanel("Coordenadas y Posiciones de Barcos en el Mar",
+                 fluidRow(column(12, h4(strong("Posición de los barcos en el mar al final de la simulación. Cada número indica un barco. La matriz representa el mar")))),
+                 fluidRow(column(2,offset = 1, tableOutput("BarcosMar"))),
+                 fluidRow(column(6, offset = 3, h4(strong("Coordenadas de cada barco")))),
+                 DT::dataTableOutput("Barcos"),
+                 fluidRow(column(3,style = "color:white",textOutput("DatosFinales1")))),
+        tabPanel("Coordenadas y Posiciones de Atún Aleta Amarilla en el Mar",
+                 fluidRow(column(12, h4(strong("Posición de los atunes en el mar al final de la simulación. Cada número indica un atún. La matriz representa el mar")))),
+                 fluidRow(column(2,offset = 1, tableOutput("YellowFinMar"))),
+                 fluidRow(column(6, offset = 3, h4(strong("Coordenadas de cada atún")))),
+                 DT::dataTableOutput("YellowFin"),
+                 #Se imprime lo de debajo para mantener estetica
+                 fluidRow(column(3,style = "color:white",textOutput("DatosFinales2")))),
+        tabPanel("Capturas de Atún Aleta Amarilla por Barco por Día",
+                 DT::dataTableOutput("Captura"),
+                 fluidRow(column(3,style = "color:white",textOutput("DatosFinales3")))))
+      
+                     )
+    
+                     )
+                  )
+
+server <- function(input, output) {
+  
+  #Dias de la temporada de Pesca
+  TemporadaDePescaDias <- eventReactive(input$go,{as.numeric(input$TemporadaDePescaDias)})
+  #Numero de Repeticiones de la Simulacion
+  Repeticiones <- eventReactive(input$go,{as.numeric(input$Repeticiones)})
+  #Area del mar (x*x matriz)
+  MarDimension <- eventReactive(input$go,{as.numeric(input$MarDimension)})
+  #Numero de Peces
+  NumeroDePeces <- eventReactive(input$go,{as.numeric(input$NumeroDePeces)})
+  #Numero de Barcos
+  NumeroDeBarcos <- eventReactive(input$go,{as.numeric(input$NumeroDeBarcos)})
+  #Cuantos cuadros maximo se pueden mover los barcos (direccion x - direccion y)
+  BarcoMovimiento <- eventReactive(input$go,{as.numeric(input$BarcoMovimiento)})
+  
+  DatosFinales99 <- reactive({
+    withProgress(message = 'Creando la Gráfica...', value = 0, {
+      #Incremento de Porcentaje de Área de Mar Abierto
+      #Nota: Porcentaje se va acumulando (por.1) y cada vez multiplica por la dimensión del mar (10 o 100), 
+      #para generar nueva x*x matriz de área abierta a la pesca. Si la longitud de la nueva matriz 
+      #es menor a número "3" y mayor a número "2", se redondea a número "2" (redondea hacia abajo)
+      #Va incrementando por 10% (.1) la area abierta cada repetición
+      IncrementoPorcentaje <- .1
+      #Empieza con 0% del area abierta
+      AreaAbierta <- 0
+      i <- 1
+      #Empiezas con vector en blanco para la captura de los barcos, cada ronda se van guardando y al final de
+      #cada porcentaje de área, se promedian y se regresa a un vector en blanco (abajo)
+      #Cada porcentaje de área termina cuando se terminen todos los días de pesca y todas las "i" repeticiones
+      BarcoCapturaPromedio <- vector()
+      #En DatosFinales se escribe cada captura promedio correspondiente a cada porcentaje de área abierta
+      DatosFinales <- data.frame (AreaAbierta = integer(),CapturaPromedio = integer())
+      
+      #Se  regresa aqui cada vez que incrementa el % de área abierta
+      while (i <= Repeticiones()) {
+        #Tamaño del mar y espacio donde se distribuyen los peces. Puros 0s para inicialmente llenar la matriz
+        #del mar (10x10 o 100x100)
+        mar <- matrix(0, nrow =MarDimension(), ncol = MarDimension())
+        #Dimensiones del area restringida a la pesca. Va de 1x1, 2x2, 3x3, etc...
+        #AreaAbierta = .1, .2, .3, etc x nrow(mar) = 10 o 100
+        PorcentajeAreaAbierta <- as.numeric(as.character(AreaAbierta %*% nrow(mar)))
+        ###################Se podria poner PorcentajeAreaAbierta como as.character para ser más corto debajo??
+        #AreaRestringidaDePesca va de 0x0, 1x1, 2x2, 3x3 (cuando máximo es 10x10) etc
+        #Igual se llena de 0s la matriz de 0x0, 1x1, etc... de área donde se puede pescar
+        AreaRestringidaDePesca <- matrix(0, nrow =PorcentajeAreaAbierta, ncol = PorcentajeAreaAbierta)
+        #Coordenadas de los Barcos
+        #Si el área abierta a la pesca es 0, poner captura 0 y seguir aumentando porcentaje. Si no... (else)
+        if (nrow(AreaRestringidaDePesca) == 0){
+          tmp <- data.frame(AreaCerrada = 0,CapturaPromedio = 0)
+          DatosFinales <- rbind(DatosFinales,tmp)
+          AreaAbierta <- AreaAbierta + IncrementoPorcentaje
+          next
+          #Si no...generar coordenadas para los barcos y peces
+        } else {
+          #Generar Numeros Aleatorios Para Coordenadas de Barcos
+          #Números aleatorios para coordenadas  x y (runif()) de acuerdo a número de barcos dicho por usuario
+          #Número maximo para # aleatorio es de acuerdo al maximo del área restringida a la pesca. Min = 1
+          BarcosX <- floor(runif(NumeroDeBarcos(), min=1, max = nrow(AreaRestringidaDePesca)+1))
+          BarcosY <- floor(runif(NumeroDeBarcos(), min=1, max = nrow(AreaRestringidaDePesca)+1))
+          #Generar Data Frame (tabla) Para Coordenadas de Barcos
+          #Columna para coordenadas X y columna para coordenadas Y
+          Barcos <- as.data.frame(BarcosX)
+          Barcos$BarcosY <- BarcosY
+        }
+        
+        #Poner los barcos en su area restringida
+        #Si no hay barcos, AreaRestringidaDePesca permanece matriz de 0s - saltarse este paso
+        #Barcos pueden tener las mismas coordenadas. si se quiere prevenir esto es un poco dificil porque
+        #cuando el área restringida es muy chica, no hay manera de que los barcos no tengan coordenadas iguales
+        #Codigo disponible en primera versión
+        if (nrow(Barcos) != 0) {
+          for (barco in 1:nrow(Barcos)) {
+            #Escoger columna X para "columna" y columna Y para "fila"
+            columna = Barcos[barco,1]
+            fila = Barcos[barco,2]
+            #Espacio en el - AreaRestringidaDePesca - se convierte de 0 (mar) a 1 (un barco)
+            AreaRestringidaDePesca[fila,columna] <- AreaRestringidaDePesca[fila,columna] + 1
+          }
+        }
+        #Generar Numeros Aleatorios Para Coordenadas de YellowFin
+        #Mismas condiciones que las usadas para generar coordenadas de barcos
+        YellowFinx <- floor(runif(NumeroDePeces(), min=1, max = nrow(mar)+1))
+        YellowFiny <- floor(runif(NumeroDePeces(), min=1, max = nrow(mar)+1))
+        #Generar Data Frame Para Coordenadas de YellowFin
+        YellowFin <- as.data.frame(YellowFinx)
+        YellowFin$YellowFiny <- YellowFiny
+        #Y ponerlos en el mar
+        for (fish in 1:nrow(YellowFin)) {
+          columna = YellowFin[fish,1]
+          fila = YellowFin[fish,2]
+          #Espacio en el - mar - se convierte de 0 (mar) a 1 (un pez)
+          mar[fila,columna] <- mar[fila,columna] + 1
+        }
+        #Se pueden mover los barcos deseado numero de cuadros lateral y horizontal de su antigua posicion
+        #Se generan barcos aleatoriamente y antes de que pesquen, se mueven
+        for (dia in 1:TemporadaDePescaDias()) {
+          #Si es el último dia de pesca de la temporada, esta abierta ya el 100% del área a la pesca,
+          #Y ya es la ultima repetición -> (Ya es el último loop de la simulación)
+          #Crear vector de las coordenadas de atún que se tienen que borrar (los que se pescaron), en blanco
+          if ((TemporadaDePescaDias() == dia)&&(as.double(as.character(AreaAbierta)) == 1)&&(i == Repeticiones())) {
+            Remove <- vector()
+          }
+          #Se tiene que crear vector afuera del loop donde aparece más tarde. Para que se reconozca como en
+          #blanco si ningun atún restante tiene las mismas coordenadas que un barco (ninguna coordenada de atún
+          #se tuvo que borrar), o para que ya exista y se le agreguen coordenadas a borrar. Si se crea vector 
+          #dentro del loop más adelante, se estaría borrando a si mismo o puede que no se crea porque ningun 
+          #atún se tiene que borrar
+          #Crear matriz en blanco de nuevo para las nuevas posiciones de los barcos (después de moverse)
+          AreaRestringidaDePesca <- matrix(0, nrow =PorcentajeAreaAbierta, ncol = PorcentajeAreaAbierta)
+          #Se pueden mover los barcos deseado numero de cuadros lateral y horizontal de su antigua posicion
+          #BarcoMovimiento()
+          #Para que los barcos no esten en las mismas coordenadas, se necesita agregar codigo. Pero tendrías
+          #que pensarle porque cuando muy poca área esta abierta a la pesca, no hay manera de que los barcos
+          #no se sobrelapen. Actualmente si pueden estar en las mismas coordenadas
+          if (nrow(Barcos) != 0) {
+            for (barco in 1:nrow(Barcos)) {
+              row = Barcos[barco,]
+              columna <- floor(runif(1, min=row$BarcosX-BarcoMovimiento(), max = row$BarcosX+BarcoMovimiento()))
+              fila <- floor(runif(1, min=row$BarcosY-BarcoMovimiento(), max = row$BarcosY+BarcoMovimiento()))
+              #Si la coordenada es más que el número de columnas en la matriz, coordenada se vuelve el número
+              #de columnas en la matriz
+              if (columna > ncol(AreaRestringidaDePesca)) {
+                columna <- ncol(AreaRestringidaDePesca)
+              }
+              #Igual si la coordenada es menos que 1, la coordenada se vuelve 1 (el minimo de columnas es 1)
+              else if (columna < 1) {22
+                columna <- 1
+              }
+              #Si la coordenada es más que el número de filas en la matriz, coordenada se vuelve el número
+              #de filas en la matriz
+              if (fila > nrow(AreaRestringidaDePesca)) {
+                fila <- nrow(AreaRestringidaDePesca)
+              }
+              #Igual si la fila es menos que 1, la fila se vuelve 1 (el minimo de filas es 1)
+              else if (fila < 1) {
+                fila <- 1
+              }
+              #Vas agregando las coordenadas a la lista y a la matriz
+              Barcos[barco,1] <- columna
+              Barcos[barco,2] <- fila
+              AreaRestringidaDePesca[fila,columna] <- AreaRestringidaDePesca[fila,columna] + 1
+            }
+          }
+          
+          if (sum(colSums(mar) != 0)) {
+            #Si aun hay peces en tu matriz,
+            #Generar Numeros Aleatorios Para Coordenadas de YellowFin. Cada dia se vuelven a mover 
+            #aleatoriamente los peces
+            #Esto ya es solo para los YellowFin que quedan
+            YellowFinx <- floor(runif(sum(colSums(mar)), min=1, max = nrow(mar)+1))
+            YellowFiny <- floor(runif(sum(colSums(mar)), min=1, max = nrow(mar)+1))
+            #Generar Data Frame Para Coordenadas de YellowFin
+            YellowFin <- as.data.frame(YellowFinx)
+            YellowFin$YellowFiny <- YellowFiny
+            mar <- matrix(0, nrow =MarDimension(), ncol = MarDimension())
+            #Generar mar y ponerlos en el mar
+            for (fish in 1:nrow(YellowFin)) {
+              row = YellowFin[fish,]
+              columna = row$YellowFinx
+              fila = row$YellowFiny
+              mar[fila,columna] <- mar[fila,columna] + 1
+            }
+          } else {
+            #Si ya no te quedan peces, crear data frame vacio
+            YellowFin <- data.frame (YellowFinx = integer(),YellowFiny = integer())
+          }
+          #Si hay barcos, se va sumando la captura de los barcos
+          if (nrow(Barcos) != 0) {
+            for (barco in 1:nrow(Barcos)) {
+              row = Barcos[barco,]
+              columna = row$BarcosX
+              fila = row$BarcosY
+              #Creas la captura en base a lo que hay en el mar, y lo vas guardando en un vector
+              Captura <- mar[fila,columna]
+              BarcoCapturaPromedio <- append(BarcoCapturaPromedio, Captura)
+              #Y borras los peces que estaban en esas coordenadas del mar
+              mar[fila,columna] <- 0
+              #Si es el ultimo dia de pesca, toda el area abierta para pescar, última repetición, y
+              # quedan peces en el mar:
+              if ((TemporadaDePescaDias() == dia)&&(as.double(as.character(AreaAbierta)) == 1)&&(i == Repeticiones())&&
+                  (nrow(YellowFin)!=0)){
+                for (tuna in 1:nrow(YellowFin)) {
+                  if ((YellowFin[tuna,1] == columna) && (YellowFin[tuna,2] == fila)) {
+                    Remove <- append(Remove,tuna)
+                  }
+                }
+                # quitar de la lista YellowFin peces que se pescaron en la ultima repetición de captura
+                # Para que no aparezcan en la lista final que se muestra en la aplicación
+                # Si es la última repetición checando las coordenadas de los barcos, remover todas las lineas
+                # Que se guardaron en la lista para remover de los peces
+                if ((barco == nrow(Barcos))&&(length(Remove)!=0)){
+                  Remove <- unique(Remove)
+                  YellowFin <- YellowFin[-Remove,]
+                }
+              }
+            }
+          } else {
+            # Si no hay barcos, la captura promedio es 0
+            Captura <- 0
+            BarcoCapturaPromedio <- append(BarcoCapturaPromedio, Captura)
+          }
+          # Generar Raster de Antes para barcos y peces. Solo el primer día de la primera 
+          # iteracion del 100% área abierta
+          if ((i == 1) && (as.double(as.character(AreaAbierta)) == 1) && (dia == 1)) {
+            #Todos los barcos son 1
+            fila <- 1
+            columna <- 1
+            #Aqui estan todos los barcos. Ver toda la matriz (AreaRestringidaDePesca) y 
+            #en una nueva matriz (AreaRestringidaDePescaAntes) poner 1s donde hay barcos
+            AreaRestringidaDePescaAntes <- AreaRestringidaDePesca
+            while (fila<=nrow(AreaRestringidaDePesca)){
+              if (AreaRestringidaDePesca[fila,columna] != 0) {
+                AreaRestringidaDePescaAntes[fila,columna] <- 1
+              }
+              #Toda la primera fila primero y despues la segunda
+              columna <- columna+1
+              if (columna > ncol(AreaRestringidaDePesca)){
+                fila <- fila+1
+                columna <- 1
+              }
+            }
+            #Aqui estan todos los peces. Ver toda la matriz (mar) y 
+            #en una nueva matriz (marAntes) poner 2s donde hay peces
+            fila <- 1
+            columna <- 1
+            marAntes <- mar
+            while (fila<=nrow(mar)){
+              if (mar[fila,columna] != 0) {
+                marAntes[fila,columna] <- 2
+              }
+              #Toda la primera fila primero y despues la segunda
+              columna <- columna+1
+              if (columna > ncol(mar)){
+                fila <- fila+1
+                columna <- 1
+              }
+            }
+            #Creas el raster de "Antes" y le pones los barcos (1s) y peces (2s) sumados. Tendras lugares con
+            # 0 (mar), 1 (barcos) y 2 (peces)
+            # No tiene 3s porque ya se "pesco" el primer día y todos los peces que estaban donde hay barcos,
+            # se borraron de la matriz mar
+            Antes <- raster(nrows=nrow(mar),ncol=ncol(mar),
+                            xmn=0,xmx=10,ymn=0,ymx=10)
+            values(Antes) <- AreaRestringidaDePescaAntes + marAntes
+            
+            factor1 <- levels(as.factor(values(Antes)))
+            #Si hay barcos y peces pero no mar...
+            if ((factor1[1]==1)&&(is.na(factor1[2]) == FALSE)){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("black","brown"), axes=FALSE)})
+              #Si solo hay peces
+            } else if (factor1[1]==2){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("brown"), axes=FALSE)})
+              #Si solo hay mar...
+            } else if ((factor1[1]==0)&&(is.na(factor1[2])==TRUE)){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("light blue"), axes=FALSE)})
+              #Si solo hay mar y barcos
+            } else if ((factor1[1]==0)&&(factor1[2]==1)&&(is.na(factor1[3])==TRUE)){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("light blue","black"), axes=FALSE)})
+              #Si hay mar, barcos, y peces
+            } else if ((factor1[1]==0)&&(factor1[2]==1)&&(factor1[3]==2)){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("light blue","black","brown"), axes=FALSE)})
+              #Si solo hay barcos
+            } else if ((factor1[1]==1)&&(is.na(factor1[2])==TRUE)){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("black"), axes=FALSE)})
+              #Si solo hay mar y peces
+            } else if ((factor1[1]==0)&&(factor1[2]==2)){
+              output$Antes1 <- renderPlot({
+                plot(as.factor(Antes),legend = FALSE, bty="n", box=FALSE,
+                     col=c("light blue","brown"), axes=FALSE)})
+            }
+          }
+          #Aquí termina el loop para los días de pesca. Despues sigue repeticiones y luego % de área abierta
+        }
+        #Aumentas número de repeticiones por 1 y si es más que el deseado por el usuario...
+        i <- i + 1
+        #Si las Repeticiones() son más de las pedidas, incrementar Area Abierta y repetir simulacion
+        if (i > Repeticiones()) {
+          #El % de área abierta a la pesca es calculado dividiendo área abierta a la pesca entre el mar total
+          #Tomamos promedio de todas las capturas por viaje redondeado a dos decimales (se hace cada vez
+          #que termina la simulación con dado % de área abierta)
+          tmp <- data.frame(AreaCerrada = ((nrow(AreaRestringidaDePesca)%*%nrow(AreaRestringidaDePesca))/(nrow(mar) %*% nrow(mar))),
+                            CapturaPromedio = round(mean(BarcoCapturaPromedio),2))
+          DatosFinales <- rbind(DatosFinales,tmp)
+          #Una vez que ya tienes más del 0% del área abierta a la pesca, agregale al progress bar e imprime
+          #el % de progreso
+          if (as.double(as.character(AreaAbierta)) > 0){
+            incProgress (1/10, detail = paste(c((AreaAbierta/1)*100),"%"))
+          }
+          #Incrementar % de área abierta por 10%
+          AreaAbierta <- AreaAbierta + IncrementoPorcentaje
+          #Imprimir como resultado la captura de cada barco por día. Esto se imprime de nuevo cada vez
+          #que incrementa el % de área abierta y reemplaza a lo impreso anteriormente
+          AreaCompletaCaptura <- as.data.frame(BarcoCapturaPromedio)
+          output$Captura <- DT::renderDataTable({
+            DT::datatable(AreaCompletaCaptura, options = list(lengthMenu =c(10,20),pagelength = 20))
+          })
+          #La captura por barco por día se borra y comienza a agregar de nuevo cada vez que se incrementa el %
+          #de área abierta a la pesca. Repeticiones se vuelven 1
+          BarcoCapturaPromedio <- vector()
+          i <- 1
+          #Pero cuando llega al 100% de área abierta se termina la simulación, entonces permanece la impresión
+          #de la captura por barco por día cuando el área abierta a la pesca es 100%
+          #Para terminar la simulación haces que las repeticiones (i) sean más de las pedidas por el usuario
+          #Y se rompe el loop para terminar la simulación y salir a los dos loops más grandes de
+          #progress bar, DatosFinales99 reactive y del server
+          if (as.double(as.character(AreaAbierta)) > 1) {
+            i <- Repeticiones() + 1
+            #Originalmente se hizo la simulación con % de área abierta incrementando de 0% a 100% y las
+            #capturas hiendo de 0 a números mayores estables
+            #Pero para obtener una grafica con capturas inicialmente altas que disminuyen,
+            #Se cambio la X para que sea % de área cerrada a la pesca. Iniciando con 0% del área cerrada (muchas
+            #capturas) e incrementando a 100% del área cerrada (0 capturas). Entonces volteamos los datos 
+            #finales con (1 - %área abierta) = %área cerrada.
+            DatosFinales$AreaCerrada <- 1-DatosFinales$AreaCerrada
+          }
+        }
+      }
+      #Fuera del loop de repeticiones (más grandes estan el progress bar, DatosFinales99 reactive y el server)
+      #Todos estos resultados se dan con 100% del area abierta, el último día de pesca, y la última
+      #repetición
+      #Coordenadas de los barcos al terminar la simulación
+      output$Barcos <- DT::renderDataTable({
+        DT::datatable(Barcos, options = list(lengthMenu =c(5,11),pagelength = 11))
+      })
+      #Coordenadas de los atunes restantes al terminar la simulación
+      output$YellowFin <- DT::renderDataTable({
+        DT::datatable(YellowFin, options = list(lengthMenu =c(5,11),pagelength = 11))
+      })
+      #Matriz de los atunes restantes al terminar la simulación
+      output$YellowFinMar <- renderTable({
+        mar
+      })
+      #Matriz de los barcos al terminar la simulación
+      output$BarcosMar <- renderTable({
+        AreaRestringidaDePesca
+      })
+      
+      #Crear el raster para visualizar mar, barcos y peces restantes al terminar la simulación
+      #Todos los espacios restantes que queden con barcos en "AreaRestringidaDePesca", 
+      #cambiar sus valores a 1 en "AreaRestringidaDePescaDespues"
+      fila <- 1
+      columna <- 1
+      AreaRestringidaDePescaDespues <- AreaRestringidaDePesca
+      while (fila<=nrow(AreaRestringidaDePesca)){
+        if (AreaRestringidaDePesca[fila,columna] != 0) { 
+          AreaRestringidaDePescaDespues[fila,columna] <- 1
+        }
+        columna <- columna+1
+        if (columna > ncol(AreaRestringidaDePesca)){
+          fila <- fila+1
+          columna <- 1
+        }
+      }
+      #Cambiar todos los peces restantes en "mar" a un 2 en "marDespues"
+      fila <- 1
+      columna <- 1
+      marDespues <- mar
+      while (fila<=nrow(mar)){
+        if (mar[fila,columna] != 0) { 
+          marDespues[fila,columna] <- 2
+        }
+        columna <- columna+1
+        if (columna > ncol(mar)){
+          fila <- fila+1
+          columna <- 1
+        }
+      }
+      #Crear raster con valores de después para peces y barcos
+      Despues <- raster(nrows=nrow(mar),ncol=ncol(mar),
+                        xmn=0,xmx=10,ymn=0,ymx=10)
+      values(Despues) <- AreaRestringidaDePescaDespues + marDespues
+      
+      factor1 <- levels(as.factor(values(Despues)))
+      #Crear gráfica de raster en output de la aplicación en base a cuales de los tres componentes están
+      #presentes (mar, barcos y peces). Considerar todos los escenarios porque los colores que se le asignan
+      #al raster varian dependiendo de que componentes están presentes
+      #Solo Barcos y Peces
+      if ((factor1[1]==1)&&(is.na(factor1[2]) == FALSE)){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("black","brown"), axes=FALSE)})
+        #Solo Peces
+      } else if (factor1[1]==2){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("brown"), axes=FALSE)})
+        #Solo mar
+      } else if ((factor1[1]==0)&&(is.na(factor1[2])==TRUE)&&(is.na(factor1[3])==TRUE)){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("light blue"), axes=FALSE)})
+        #Solo mar y barcos
+      } else if ((factor1[1]==0)&&(factor1[2]==1)&&(is.na(factor1[3])==TRUE)){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("light blue","black"), axes=FALSE)})
+        #Mar, barcos, y peces
+      } else if ((factor1[1]==0)&&(factor1[2]==1)&&(factor1[3]==2)){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("light blue","black","brown"), axes=FALSE)})
+        #Solo Barcos
+      } else if ((factor1[1]==1)&&(is.na(factor1[2])==TRUE)){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("black"), axes=FALSE)})
+        #Solo Mar y Peces
+      } else if ((factor1[1]==0)&&(factor1[2]==2)){
+        output$Despues1 <- renderPlot({
+          plot(as.factor(Despues),legend = FALSE, bty="n", box=FALSE,
+               col=c("light blue","brown"), axes=FALSE)})
+      }
+      #Crear Leyendas para los rasters de antes y después
+      output$LeyendaPeces <- renderPlot({
+        plot(x=c(0,1),y=c(0,1), xlab="", ylab="", type="n", axes= FALSE)
+        polygon(x=c(0,0,.8,.8), y=c(.8,1,1,.8),col="brown",border = "transparent")
+      })
+      output$LeyendaBarcos <- renderPlot({
+        plot(x=c(0,1),y=c(0,1), xlab="", ylab="", type="n", axes= FALSE)
+        polygon(x=c(0,0,.8,.8), y=c(.8,1,1,.8),col="black",border = "transparent")
+      })
+      output$LeyendaMar <- renderPlot({
+        plot(x=c(0,1),y=c(0,1), xlab="", ylab="", type="n", axes= FALSE)
+        polygon(x=c(0,0,.8,.8), y=c(.8,1,1,.8),col="light blue",border = "transparent")
+      })
+      
+      return(DatosFinales)
+    })
+    #Saliendo del loop del progress bar (más grandes estan DatosFinales99 reactive y el server)
+  })
+  #Saliendo del loop de DatosFinales99 reactive (más grandes esta el server)
+  #Ouput DatosFinales se da a DatosFinales99
+  output$DatosFinales <- DT::renderDataTable({
+    DT::datatable(DatosFinales99(), options = list(lengthMenu =c(5,11),pagelength = 11))
+  })
+  #Creo lo de abajo nada más para estética en presentación del app (espacios, etc)
+  output$DatosFinales1 <- renderPrint({
+    substr(DatosFinales99(),0,1)
+  })
+  output$DatosFinales2 <- renderPrint({
+    substr(DatosFinales99(),0,1)
+  })
+  output$DatosFinales3 <- renderPrint({
+    substr(DatosFinales99(),0,1)
+  })
+  #Bajar la tabla con el nombre de los parametros que escogió el usuario
+  output$downloadtable <- downloadHandler(
+    filename = function() {
+      paste("TP",TemporadaDePescaDias(),"Rep",Repeticiones(),
+            "Mar",MarDimension(),"Peces",NumeroDePeces(),"Barcos",NumeroDeBarcos(),
+            "MovBarcos",BarcoMovimiento(),".csv", sep ="")
+    },
+    content = function(file) {
+      write.csv(DatosFinales99(), file, row.names = TRUE)
+    }
+  )
+  #"The Plot" output reactivo para imprimirlo más abajo como resultado final
+  ThePlot <- reactive({
+    #Grafica. Guardarla en el folder creado arriba
+    plot <- ggplot(data = DatosFinales99(), aes(x = AreaCerrada, y = CapturaPromedio, group=1))+
+      geom_line(color="red")+
+      geom_point() + labs(title="Captura de Atún Aleta Amarilla Dependiendo de Porcentaje de Área Para Pescar Cerrada", 
+                          x ="Porcentaje de Área Cerrada", y ="Captura Promedio por Barco")
+    ranges <- ggplot_build(plot)$layout$panel_ranges[[1]]$y.range
+    
+    plotfinal <- (ggplot(data = DatosFinales99(), aes(x = AreaCerrada, y = CapturaPromedio, group=1))+
+                    geom_line(color="red")+
+                    geom_point() + labs(title="Captura de Atún Aleta Amarilla Dependiendo de Porcentaje de Área Para Pescar Cerrada", 
+                                        x ="Porcentaje de Área Cerrada", y ="Captura Promedio por Barco") + 
+                    theme(plot.title = element_text(size =10,face = "bold",hjust = 0.5))+
+                    annotate("rect", xmin = .125, xmax = .72, ymin = as.double(as.character(.008%*%ranges[2])), ymax = as.double(as.character(.5%*%ranges[2])), alpha =.2) +
+                    annotate("text", x = .19, y = as.double(as.character(.4385%*%ranges[2])), label = paste0("Temporada De Pesca Días = ", TemporadaDePescaDias()), 
+                             size = 4, hjust = 0) +
+                    annotate("text", x = .19, y = as.double(as.character(.377%*%ranges[2])), label = paste0("Repeticiones = ", Repeticiones()), 
+                             size = 4, hjust = 0) +
+                    annotate("text", x = .19, y = as.double(as.character(.3155%*%ranges[2])), label = paste0("Mar Dimensión = ", MarDimension(), "x", MarDimension()),
+                             size = 4, hjust = 0) +
+                    annotate("text", x = .19, y = as.double(as.character(.254%*%ranges[2])), label = paste0("Número de Peces = ", NumeroDePeces()),
+                             size = 4, hjust = 0) +
+                    annotate("text", x = .19, y = as.double(as.character(.1925%*%ranges[2])), label = paste0("Número de Barcos = ", NumeroDeBarcos()),
+                             size = 4, hjust = 0) +
+                    annotate("text", x = .19, y = as.double(as.character(.131%*%ranges[2])), label = paste0("Incremento de Porcentaje = 10%"),
+                             size = 4, hjust = 0) +
+                    annotate("text", x = .19, y = as.double(as.character(.0695%*%ranges[2])), label = paste0("Movimiento de Barcos en x/y = ", BarcoMovimiento()),
+                             size = 4, hjust = 0))
+    
+    return (plotfinal)
+  })
+  #Con esto se imprime la gráfica final
+  output$plot <- renderPlot({
+    ThePlot()
+  })
+  #Bajar la gráfica como PDF
+  output$downloadplot1 <- downloadHandler(
+    filename <- function() {
+      paste("TP",TemporadaDePescaDias(),"Rep",Repeticiones(),
+            "Mar", MarDimension(),"Peces",NumeroDePeces(),"Barcos",NumeroDeBarcos(),
+            "MovBarcos",BarcoMovimiento(), ".pdf", sep = "")
+    },
+    content <- function(file) {
+      ggsave(file, ThePlot())
+    }
+  )
+}
+#Fin del último loop: El server
+shinyApp(ui = ui, server = server)
